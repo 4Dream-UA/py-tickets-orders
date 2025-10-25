@@ -1,7 +1,20 @@
-from rest_framework import viewsets, permissions, filters
-from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import (
+    viewsets,
+    permissions,
+    filters
+)
 
-from cinema.models import Genre, Actor, CinemaHall, Movie, MovieSession, Order
+from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.dateparse import parse_date
+
+from cinema.models import (
+    Genre,
+    Actor,
+    CinemaHall,
+    Movie,
+    MovieSession,
+    Order
+)
 
 from cinema.serializers import (
     GenreSerializer,
@@ -13,7 +26,8 @@ from cinema.serializers import (
     MovieDetailSerializer,
     MovieSessionDetailSerializer,
     MovieListSerializer,
-    OrderListSerializer
+    OrderListSerializer,
+    OrderCreateSerializer
 )
 
 
@@ -34,11 +48,14 @@ class CinemaHallViewSet(viewsets.ModelViewSet):
 
 class MovieViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Movie.objects.prefetch_related("genres", "actors").all()
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     serializer_class = MovieListSerializer
+    filter_backends = [DjangoFilterBackend]
 
-    filterset_fields = ["genres", "actors"]
-    search_fields = ["title"]
+    filterset_fields = {
+        "genres": ["exact"],
+        "actors": ["exact"],
+        "title": ["icontains"]
+    }
 
     def get_serializer_class(self):
         if self.action == "retrieve":

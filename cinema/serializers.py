@@ -95,7 +95,7 @@ class MovieSessionDetailSerializer(serializers.ModelSerializer):
 
     def get_taken_places(self, obj):
         tickets = Ticket.objects.filter(movie_session=obj)
-        return [{"row": t.row, "seat": t.seat} for t in tickets]\
+        return [{"row": t.row, "seat": t.seat} for t in tickets]
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -106,18 +106,36 @@ class TicketSerializer(serializers.ModelSerializer):
         fields = ['id', 'row', 'seat', 'movie_session']
 
 
+class MovieSessionFlatSerializer(serializers.ModelSerializer):
+    movie_title = serializers.CharField(source="movie.title", read_only=True)
+    cinema_hall_name = serializers.CharField(source="cinema_hall.name", read_only=True)
+    cinema_hall_capacity = serializers.IntegerField(source="cinema_hall.capacity", read_only=True)
+
+    class Meta:
+        model = MovieSession
+        fields = ("id", "show_time", "movie_title", "cinema_hall_name", "cinema_hall_capacity")
+
+
+class TicketFlatSerializer(serializers.ModelSerializer):
+    movie_session = MovieSessionFlatSerializer(read_only=True)
+
+    class Meta:
+        model = Ticket
+        fields = ['id', 'row', 'seat', 'movie_session']
+
+
 class OrderListSerializer(serializers.ModelSerializer):
-    tickets = TicketSerializer(many=True, read_only=True)
+    tickets = TicketFlatSerializer(many=True, read_only=True)
 
     class Meta:
         model = Order
         fields = ['id', 'tickets', 'created_at']
 
+
 class TicketCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticket
         fields = ['row', 'seat', 'movie_session']
-
 
 class OrderCreateSerializer(serializers.ModelSerializer):
     tickets = TicketCreateSerializer(many=True)
@@ -125,6 +143,18 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'tickets', 'created_at']
+
+    def validate_tickets(self, tickets):
+        for ticket_data in tickets:
+            movie_session = ticket_data['movie_session']
+            row = ticket_data['row']
+            seat = ticket_data['seat']
+
+            if Ticket.objects.filter(movie_session=movie_session, row=row, seat=seat).exists():
+                raise serializers.ValidationError(
+                    f"Место {row}-{seat} на сеанс {movie_session.id} уже занято."
+                )
+        return tickets
 
     def create(self, validated_data):
         user = self.context['request'].user
